@@ -9,9 +9,8 @@ mbot2.servo_set(90,"S1")
 
 while True:
 
-
-    joystick_Ly = gamepad.get_joystick('Ry')
-    joystick_Lx = gamepad.get_joystick('Rx')
+    joystick_Ly = gamepad.get_joystick('Ly')
+    joystick_Lx = gamepad.get_joystick('Lx')
 
     left_motor = joystick_Ly - joystick_Lx
     right_motor = joystick_Ly + joystick_Lx
@@ -22,8 +21,8 @@ while True:
     mbot2.drive_power(left_motor, right_motor)
 
 
-    joystick_Ry = gamepad.get_joystick('Ly')
-    joystick_Rx = gamepad.get_joystick('Lx')
+    joystick_Ry = gamepad.get_joystick('Ry')
+    joystick_Rx = gamepad.get_joystick('Rx')
 
     shooter_1 = joystick_Ry + joystick_Rx
     shooter_2 = joystick_Ry + joystick_Rx
@@ -33,8 +32,6 @@ while True:
 
     mbot2.motor_set(shooter_1 ,"M1")
     mbot2.motor_set(shooter_2, "M2")
-
-    #gripper
 
     if gamepad.is_key_pressed("N1"):
         mbot2.servo_set(180,"S2")
@@ -48,5 +45,4 @@ while True:
     elif gamepad.is_key_pressed("N4"):
         mbot2.servo_set(90,"S1")
 
-    # Add delay
     time.sleep(0.05)
