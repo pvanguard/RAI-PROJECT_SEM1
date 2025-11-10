@@ -1,197 +1,125 @@
 #include <Servo.h>
 
-#define TRIG_F 2
-#define ECHO_F 3
+struct Ultrasonic {
+  int trig;
+  int echo;
+};
 
-#define TRIG_L 4
-#define ECHO_L 5
-
-#define TRIG_R 6
-#define ECHO_R 7
+Ultrasonic sensors[3] = {
+  {2, 3},
+  {4, 5},
+  {6, 7}
+};
 
 #define ENA 9
 #define IN1 8
 #define IN2 10
-
 #define ENB 11
 #define IN3 12
 #define IN4 13
 
-#define PIN_LIFT A0
-#define PIN_GRIP A1
-
-const int LIFT_DOWN  = 5;
-const int LIFT_UP    = 95;
-
-const int GRIP_OPEN  = 70;
-const int GRIP_CLOSE = 10;
-
-const int PICK_CM   = 6;
-const int BLOCK_CM  = 5;
-
-const int SPEED_FULL = 255;
-
 Servo lift;
 Servo grip;
 
-bool carrying = false;
+const int LIFT_DOWN = 5;
+const int LIFT_UP = 95;
+const int GRIP_OPEN = 70;
+const int GRIP_CLOSE = 10;
+const int TURN_TIME = 400;
+const int PICK_DISTANCE = 6;
+const int OBSTACLE_DISTANCE = 5;
+const int SPEED_FWD = 160;
 
-void stopM() {
-  analogWrite(ENA, 0);
-  analogWrite(ENB, 0);
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
-}
+bool *isCarrying = new bool(false);
 
-void forward() {
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
-
-  analogWrite(ENA, SPEED_FULL);
-  analogWrite(ENB, SPEED_FULL);
-}
-
-void back() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, HIGH);
-
-  analogWrite(ENA, SPEED_FULL);
-  analogWrite(ENB, SPEED_FULL);
-}
-
-void rightTurn() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
-
-  analogWrite(ENA, SPEED_FULL);
-  analogWrite(ENB, SPEED_FULL);
-}
-
-int readUS(int trig, int echo) {
-  digitalWrite(trig, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trig, LOW);
-
-  long duration = pulseIn(echo, HIGH, 20000);
-  int distance = duration * 0.034 / 2;
-
-  if (distance <= 0) distance = 400;
-  return distance;
-}
-
-void clawOpen() {
-  grip.write(GRIP_OPEN);
-  delay(250);
-}
-
-void clawClose() {
-  grip.write(GRIP_CLOSE);
-  delay(300);
-}
-
-void liftDown() {
-  lift.write(LIFT_DOWN);
-  delay(500);
-}
-
-void liftUp() {
-  lift.write(LIFT_UP);
-  delay(500);
-}
-
-void pickupSequence() {
-  forward();
-  delay(200);
-  stopM();
-  delay(100);
-
-  liftDown();
-  delay(100);
-
-  clawClose();
-  delay(200);
-
-  liftUp();
-  delay(150);
-
-  carrying = true;
-}
+void forward();
+void back();
+void stopM();
+void rightTurn();
+int readUS(Ultrasonic s);
+void pickupSequence();
 
 void setup() {
-  Serial.begin(115200);
-
-  pinMode(TRIG_F, OUTPUT);
-  pinMode(ECHO_F, INPUT);
-  pinMode(TRIG_L, OUTPUT);
-  pinMode(ECHO_L, INPUT);
-  pinMode(TRIG_R, OUTPUT);
-  pinMode(ECHO_R, INPUT);
-
-  pinMode(ENA, OUTPUT);
-  pinMode(ENB, OUTPUT);
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
-
+  Serial.begin(9600);
+  pinMode(ENA, OUTPUT); pinMode(ENB, OUTPUT);
+  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+  for (int i = 0; i < 3; i++) {
+    pinMode(sensors[i].trig, OUTPUT);
+    pinMode(sensors[i].echo, INPUT);
+  }
+  lift.attach(A0);
+  grip.attach(A1);
+  lift.write(LIFT_UP);
+  grip.write(GRIP_OPEN);
   stopM();
-
-  lift.attach(PIN_LIFT);
-  grip.attach(PIN_GRIP);
-
-  liftUp();
-  clawOpen();
-
-  Serial.println("Autonomous Robot: Vacuum + Pickup Mode Ready");
 }
 
 void loop() {
-  int front = readUS(TRIG_F, ECHO_F);
-  int left  = readUS(TRIG_L, ECHO_L);
-  int right = readUS(TRIG_R, ECHO_R);
-
-  Serial.print("F: ");
-  Serial.print(front);
-  Serial.print("  L: ");
-  Serial.print(left);
-  Serial.print("  R: ");
-  Serial.println(right);
-
-  if (!carrying && front <= PICK_CM) {
-    stopM();
-    delay(100);
+  int distance[3];
+  for (int i = 0; i < 3; i++) {
+    distance[i] = readUS(sensors[i]);
+  }
+  if (!*isCarrying && distance[0] <= PICK_DISTANCE) {
+    stopM(); delay(200);
     pickupSequence();
-    stopM();
-    delay(150);
-    return;
+    *isCarrying = true;
   }
-
-  if (front <= BLOCK_CM) {
-    stopM();
-    delay(100);
-    back();
-    delay(250);
-    stopM();
-    delay(100);
-    rightTurn();
-    delay(400);
-    stopM();
-    delay(200);
-    return;
+  else if (distance[0] <= OBSTACLE_DISTANCE) {
+    stopM(); delay(100);
+    back(); delay(250);
+    stopM(); delay(100);
+    rightTurn(); delay(TURN_TIME);
+    stopM(); delay(120);
   }
+  else {
+    forward(); delay(100);
+    stopM(); delay(10);
+  }
+}
 
-  forward();
-  delay(120);
-  stopM();
-  delay(30);
+int readUS(Ultrasonic s) {
+  digitalWrite(s.trig, LOW); delayMicroseconds(2);
+  digitalWrite(s.trig, HIGH); delayMicroseconds(10);
+  digitalWrite(s.trig, LOW);
+  long duration = pulseIn(s.echo, HIGH, 25000);
+  int distance = duration * 0.034 / 2;
+  if (distance == 0) distance = 400;
+  return distance;
+}
+
+void stopM() {
+  analogWrite(ENA, 0); analogWrite(ENB, 0);
+  digitalWrite(IN1, LOW); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW); digitalWrite(IN4, LOW);
+}
+
+void forward() {
+  digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+  analogWrite(ENA, SPEED_FWD);
+  analogWrite(ENB, SPEED_FWD);
+}
+
+void back() {
+  digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
+  analogWrite(ENA, SPEED_FWD);
+  analogWrite(ENB, SPEED_FWD);
+}
+
+void rightTurn() {
+  digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);
+  analogWrite(ENA, SPEED_FWD);
+  analogWrite(ENB, SPEED_FWD);
+}
+
+void pickupSequence() {
+  lift.write(LIFT_DOWN);
+  delay(300);
+  grip.write(GRIP_CLOSE);
+  delay(400);
+  lift.write(LIFT_UP);
+  delay(500);
 }
